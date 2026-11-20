@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // صور المعاينة بتقرا الفونت من الديسك وقت التشغيل
+  outputFileTracingIncludes: {
+    "/opengraph-image": ["src/assets/fonts/*.ttf"],
+  },
   turbopack: {
     rules: {
       "*.css": {
