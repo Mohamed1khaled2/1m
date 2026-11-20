@@ -5,6 +5,8 @@ import { DeleteButton } from "@/components/admin/delete-button";
 import { EntryForm } from "@/components/admin/entry-form";
 import { PlanForm } from "@/components/admin/plan-form";
 import { ProjectsAdmin } from "@/components/admin/projects-admin";
+import { VideoAssistant } from "@/components/admin/video-assistant";
+import { loadStyleSamples } from "@/app/admin/ai-actions";
 import { requireAdmin } from "@/lib/admin-auth";
 import { KINDS, loadJourney } from "@/lib/journey";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -15,6 +17,8 @@ export const metadata = { robots: { index: false } };
 export default async function AdminPage() {
   await requireAdmin();
   const journey = await loadJourney();
+  // لو جدول settings لسه مااتعملش، الأسلوب بيبدأ فاضي بدل ما الصفحة تقع
+  const style = await loadStyleSamples().catch(() => "");
   const { data: cheers } = await createAdminClient()
     .from("cheers")
     .select("id, name, created_at")
@@ -47,6 +51,15 @@ export default async function AdminPage() {
           </h2>
           <p className="mb-5 text-sm text-muted">آخر اللي قالوا عاش. لو في اسم مش لطيف امسحه.</p>
           <CheersList cheers={(cheers ?? []) as Cheer[]} />
+        </section>
+
+        <section className="mt-16">
+          <h2 className="mb-1 text-xl font-black">🎬 مساعد الفيديوهات</h2>
+          <p className="mb-5 text-sm text-muted">عارف قصتك كلها من الموقع، وبيكتب بأسلوبك. ببلاش بـ Gemini.</p>
+          <VideoAssistant
+            entries={journey.entries.slice(0, 40).map((e) => ({ id: e.id, title: e.title, happened_on: e.happened_on }))}
+            initialStyle={style}
+          />
         </section>
 
         <section className="mt-16">

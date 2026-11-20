@@ -92,3 +92,14 @@ alter table public.entries add column if not exists links jsonb not null default
 
 -- بعد أي تغيير في الجداول: خلّي Supabase يحدّث قايمته
 notify pgrst, 'reload schema';
+
+-- ─────────────────────────────────────────────────────────────
+-- إعدادات بسيطة (مفتاح ← قيمة). أولها: أمثلة من أسلوبك عشان مساعد الفيديوهات يكتب زيك.
+create table if not exists public.settings (
+  key text primary key,
+  value text not null default '',
+  updated_at timestamptz not null default now()
+);
+alter table public.settings enable row level security;
+
+notify pgrst, 'reload schema';

@@ -7,6 +7,7 @@ import { CountdownInline } from "@/components/countdown-inline";
 import { Delta, EntryItem } from "@/components/entry-item";
 import { FollowLinks } from "@/components/follow-links";
 import { HeroAvatar } from "@/components/hero-avatar";
+import { HowSection } from "@/components/how-section";
 import { PlanBoard } from "@/components/plan-board";
 import { Reveal } from "@/components/reveal";
 import { ProjectCard } from "@/components/project-card";
@@ -16,7 +17,7 @@ import { CREATOR, lineOfTheDay } from "@/lib/creator";
 import { type Entry, type Journey } from "@/lib/journey";
 import { GOAL, QUARTERS, YEAR, formatEGP, isQuarterOpen, paceFor, stepFor } from "@/lib/year";
 
-const ORDINALS = ["الأول", "التاني", "التالت", "الرابع", "الخامس"];
+const ORDINALS = ["الأول", "التاني", "التالت", "الرابع", "الخامس", "السادس"];
 const OPENS = ["١ يناير", "١ أبريل", "١ يوليو", "١ أكتوبر"];
 
 /** بيقسّم اليوميات (من الأقدم للأحدث): قبل السنة، كل ربع لوحده، وبعد السنة. */
@@ -64,7 +65,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
   const hasPlan = !!journey.answer || journey.steps.length > 0;
   const groups = groupEntries(journey.entries);
   const projectOf = new Map(journey.projects.map((p) => [p.id, { slug: p.slug, name: p.name }]));
-  const chapters = ["progress", hasPlan && "plan", journey.projects.length > 0 && "projects", "story"].filter(Boolean);
+  const chapters = ["progress", hasPlan && "plan", "how", journey.projects.length > 0 && "projects", "story"].filter(Boolean);
   const chapterOf = (key: string) => ORDINALS[chapters.indexOf(key)];
   // المكان اللي شغال فيه دلوقتي (أول مشروع متعلّم "بشتغل فيها")
   const workplace = journey.projects.find((p) => p.kind === "work");
@@ -183,6 +184,12 @@ export function JourneyView({ journey }: { journey: Journey }) {
             <PlanBoard answer={journey.answer} steps={journey.steps} projects={journey.projects} />
           </section>
         )}
+
+        {/* إزاي هيحصل */}
+        <section className="mt-28">
+          <Chapter n={chapterOf("how")} title="إزاي هيحصل؟" sub="مش حظ. دي الطريقة والعدّة." />
+          <HowSection />
+        </section>
 
         {/* المشاريع: على الموبايل بتتقلب بالعرض، وعلى الكبير جنب بعض */}
         {journey.projects.length > 0 && (
