@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/reveal";
+import { LottieAnimation } from "@/components/lottie-animation";
 import { GEAR, METHOD, TOOLS } from "@/lib/creator";
 
 /** "إزاي هيحصل؟": الطريقة اللي بتتكرر، والعدّة، والأدوات. عشان الناس تشوف إن ده شغل مش حظ. */
@@ -25,7 +26,7 @@ export function HowSection({ terminal }: { terminal?: React.ReactNode }) {
                 <span className="absolute -top-2.5 right-3 flex size-6 items-center justify-center rounded-full bg-gold text-xs font-black text-black">
                   {i + 1}
                 </span>
-                <span className="text-3xl">{m.icon}</span>
+                <LottieAnimation name={m.animation} fallback={m.icon} className="h-24 w-28 sm:h-28 sm:w-32" />
                 <p className="mt-2 font-black">{m.title}</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">{m.text}</p>
               </li>

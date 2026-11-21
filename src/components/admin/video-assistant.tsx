@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { generateVideoPackage, saveStyleSamples, suggestIdeas, type VideoPackage } from "@/app/admin/ai-actions";
 import { VideoPackageView } from "@/components/admin/video-package-view";
+import { LottieAnimation } from "@/components/lottie-animation";
 
 type Source = { kind: "idea" } | { kind: "entry"; id: number; title: string } | { kind: "week" };
 
@@ -127,6 +128,14 @@ export function VideoAssistant({
       </div>
 
       {error && <p className="rounded-xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-400">{error}</p>}
+
+      {(making || thinking) && (
+        <div role="status" className="flex flex-col items-center rounded-2xl border border-gold/30 bg-surface p-5 text-center">
+          <LottieAnimation name="ai-loading" fallback="🤖" loop className="size-32" />
+          <p className="mt-2 font-bold text-gold">{making ? "بيجهّز الفيديو بتاعك..." : "بيدوّر لك على أفكار..."}</p>
+          <p className="mt-1 text-sm text-muted">{making ? "بيكتب السكريبت ويرتّب اللقطات ويجهّز كلام النشر." : "بيختار أفكار تناسب قصتك واللي بتشتغل عليه."}</p>
+        </div>
+      )}
 
       {/* ٢. الفيديو */}
       {pkg && <VideoPackageView pkg={pkg} />}
