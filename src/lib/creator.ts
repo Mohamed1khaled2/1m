@@ -14,7 +14,7 @@ export const CREATOR = {
   followLabel: "تابعني على تيك توك",
   instagram: "https://www.instagram.com/mohamed.khaledd9/",
   /** فيديو كل أسبوع */
-  youtube: "https://www.youtube.com/@MohamedKhaled-001",
+  youtube: "https://www.youtube.com/@mohamed1khaled2",
   youtubeLabel: "فيديو كل أسبوع على يوتيوب",
   emptyLog: "القصة بتبدأ ١ يناير. تابعني عشان تشوف أول خطوة.",
 };
