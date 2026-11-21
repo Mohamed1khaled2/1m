@@ -22,7 +22,7 @@ export async function logout() {
 const planSchema = z.object({
   answer: z.string().max(4000),
   steps: z
-    .array(z.object({ id: z.string().max(40), text: z.string().trim().min(1).max(300), done: z.boolean() }))
+    .array(z.object({ id: z.string().max(40), text: z.string().trim().min(1).max(300), done: z.boolean(), kind: z.enum(["milestone", "ongoing"]).optional() }))
     .max(50),
 });
 

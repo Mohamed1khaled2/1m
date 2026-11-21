@@ -13,6 +13,7 @@ import { Reveal } from "@/components/reveal";
 import { ProjectCard } from "@/components/project-card";
 import { Terminal } from "@/components/terminal";
 import { YearGrid, type DayActivity } from "@/components/year-grid";
+import { YouTubeIcon } from "@/components/youtube-icon";
 import { CREATOR, lineOfTheDay } from "@/lib/creator";
 import { type Entry, type Journey } from "@/lib/journey";
 import { GOAL, QUARTERS, YEAR, formatEGP, isQuarterOpen, paceFor, stepFor } from "@/lib/year";
@@ -62,10 +63,11 @@ export function JourneyView({ journey }: { journey: Journey }) {
   const pace = paceFor(journey.balance);
   const todayLine = lineOfTheDay();
   const { stats } = journey;
-  const hasPlan = !!journey.answer || journey.steps.length > 0;
+  const hasPlan = !!journey.answer.trim();
+  const personalProjects = journey.projects.filter((p) => p.kind === "mine");
   const groups = groupEntries(journey.entries);
   const projectOf = new Map(journey.projects.map((p) => [p.id, { slug: p.slug, name: p.name }]));
-  const chapters = ["progress", hasPlan && "plan", "how", journey.projects.length > 0 && "projects", "story"].filter(Boolean);
+  const chapters = ["progress", hasPlan && "plan", "how", personalProjects.length > 0 && "projects", "story"].filter(Boolean);
   const chapterOf = (key: string) => ORDINALS[chapters.indexOf(key)];
   // المكان اللي شغال فيه دلوقتي (أول مشروع متعلّم "بشتغل فيها")
   const workplace = journey.projects.find((p) => p.kind === "work");
@@ -84,7 +86,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
           { id: "progress", label: "وصل لفين" },
           ...(hasPlan ? [{ id: "plan", label: "الخطة" }] : []),
           { id: "how", label: "إزاي" },
-          ...(journey.projects.length > 0 ? [{ id: "projects", label: "المشاريع" }] : []),
+          ...(personalProjects.length > 0 ? [{ id: "projects", label: "المشاريع" }] : []),
           { id: "story", label: "اللي حصل" },
         ]}
       />
@@ -124,6 +126,10 @@ export function JourneyView({ journey }: { journey: Journey }) {
             <p className="text-[11px] font-bold tracking-widest text-gold">جملة النهارده</p>
             <p className="hand mt-1 text-2xl leading-relaxed sm:text-3xl">“{todayLine}”</p>
           </div>
+          <p className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
+            <YouTubeIcon className="size-5 shrink-0 text-gold" />
+            <span>فيديو على يوتيوب كل أسبوع</span>
+          </p>
         </section>
 
         {/* وصل لفين: الفلوس والوقت */}
@@ -174,7 +180,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
         {hasPlan && (
           <section id="plan" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("plan")} title="الخطة" sub="هعمل إيه عشان أوصل للمليون." />
-            <PlanBoard answer={journey.answer} steps={journey.steps} projects={journey.projects} />
+            <PlanBoard answer={journey.answer} />
           </section>
         )}
 
@@ -200,12 +206,12 @@ export function JourneyView({ journey }: { journey: Journey }) {
         </section>
 
         {/* المشاريع: على الموبايل بتتقلب بالعرض، وعلى الكبير جنب بعض */}
-        {journey.projects.length > 0 && (
+        {personalProjects.length > 0 && (
           <section id="projects" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("projects")} title="المشاريع" sub="كل مشروع قصة لوحده. دوس على أي واحد وشوف قصته." />
             <Reveal>
               <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0">
-                {journey.projects.map((p) => (
+                {personalProjects.map((p) => (
                   <div key={p.id} className="w-[85%] shrink-0 snap-center sm:w-auto">
                     <ProjectCard project={p} />
                   </div>

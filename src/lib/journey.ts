@@ -2,7 +2,7 @@ import { CREATOR } from "@/lib/creator";
 import { createAdminClient } from "@/lib/supabase/server";
 import { YEAR } from "@/lib/year";
 
-export type Step = { id: string; text: string; done: boolean };
+export type Step = { id: string; text: string; done: boolean; kind?: "milestone" | "ongoing" };
 
 export type EntryKind = "step" | "money" | "fail" | "lesson";
 

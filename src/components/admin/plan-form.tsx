@@ -5,11 +5,12 @@ import { savePlan } from "@/app/admin/actions";
 import { Paper } from "@/components/paper";
 import { celebrate } from "@/lib/fx";
 import type { Step } from "@/lib/journey";
+import { planItemKind } from "@/lib/plan";
 
 /** الخطة اللي بتظهر للناس في الصفحة الرئيسية: الإجابة والخطوات (تعلّم عليها لما تخلّصها). */
 export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: string; initialSteps: Step[] }) {
   const [answer, setAnswer] = useState(initialAnswer);
-  const [steps, setSteps] = useState(initialSteps);
+  const [steps, setSteps] = useState(() => initialSteps.map((step) => ({ ...step, kind: planItemKind(step) })));
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"idle" | "dirty" | "saved" | string>("idle");
   const [pending, start] = useTransition();
@@ -19,7 +20,7 @@ export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: strin
   function add() {
     const text = draft.trim();
     if (!text) return;
-    setSteps((s) => [...s, { id: crypto.randomUUID().slice(0, 8), text, done: false }]);
+    setSteps((s) => [...s, { id: crypto.randomUUID().slice(0, 8), text, done: false, kind: planItemKind({ id: "", text, done: false }) }]);
     setDraft("");
     dirty();
   }
@@ -46,23 +47,37 @@ export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: strin
           className="hand block w-full resize-none bg-transparent text-2xl leading-[var(--line)] placeholder:text-[#2b1a10]/30 focus:outline-none"
         />
 
-        <p className="mt-2 font-sans text-xs font-bold text-[#2b1a10]/50">الخطوات</p>
+        <p className="mt-2 font-sans text-xs font-bold text-[#2b1a10]/50">مراحل والتزامات</p>
+        <p className="font-sans text-xs leading-6 text-[#2b1a10]/70">المرحلة ليها نهاية وتعلّم عليها لما تخلص. الالتزام بيتكرر طول الرحلة، زي فيديو كل أسبوع.</p>
         <ul>
           {steps.map((s) => (
-            <li key={s.id} className="flex items-center gap-2">
-              <input
+            <li key={s.id} className="flex flex-wrap items-center gap-2">
+              {s.kind === "milestone" ? <input
                 type="checkbox"
                 checked={s.done}
                 onChange={() => (setSteps((all) => all.map((x) => (x.id === s.id ? { ...x, done: !x.done } : x))), dirty())}
                 className="size-5 shrink-0 accent-[#2b3a67]"
                 aria-label="خلصت"
-              />
+              /> : <span aria-hidden="true" className="w-5 shrink-0 text-center">↻</span>}
               <input
                 value={s.text}
                 onChange={(e) => (setSteps((all) => all.map((x) => (x.id === s.id ? { ...x, text: e.target.value } : x))), dirty())}
                 maxLength={300}
-                className={`hand h-[var(--line)] flex-1 bg-transparent text-xl focus:outline-none ${s.done ? "text-[#2b1a10]/40 line-through" : ""}`}
+                className={`hand h-[var(--line)] min-w-0 flex-1 bg-transparent text-xl focus:outline-none ${s.kind === "milestone" && s.done ? "text-[#2b1a10]/40 line-through" : ""}`}
               />
+              <select
+                aria-label={`نوع البند: ${s.text}`}
+                value={s.kind}
+                onChange={(e) => {
+                  const kind = e.target.value as "milestone" | "ongoing";
+                  setSteps((all) => all.map((x) => x.id === s.id ? { ...x, kind, done: kind === "ongoing" ? false : x.done } : x));
+                  dirty();
+                }}
+                className="rounded border border-[#2b1a10]/20 bg-[#f6eedb] px-1 py-1 font-sans text-xs"
+              >
+                <option value="milestone">مرحلة</option>
+                <option value="ongoing">التزام مستمر</option>
+              </select>
               <button
                 onClick={() => (setSteps((all) => all.filter((x) => x.id !== s.id)), dirty())}
                 className="px-2 text-[#2b1a10]/40 hover:text-[#e85d4a]"
