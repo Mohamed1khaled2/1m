@@ -2,7 +2,7 @@ import { Reveal } from "@/components/reveal";
 import { GEAR, METHOD, TOOLS } from "@/lib/creator";
 
 /** "إزاي هيحصل؟": الطريقة اللي بتتكرر، والعدّة، والأدوات. عشان الناس تشوف إن ده شغل مش حظ. */
-export function HowSection() {
+export function HowSection({ terminal }: { terminal?: React.ReactNode }) {
   const gear = [
     { icon: "📱", title: "iPhone 13 Pro Max", text: "كل التصوير." },
     { icon: "🎙️", title: "مايك", text: GEAR.audio },
@@ -74,6 +74,12 @@ export function HowSection() {
           ))}
         </div>
       </div>
+      {terminal && (
+        <Reveal>
+          <p className="mb-3 text-center text-sm text-muted">والموقع نفسه متبرمج، ده حاله دلوقتي:</p>
+          {terminal}
+        </Reveal>
+      )}
     </div>
   );
 }

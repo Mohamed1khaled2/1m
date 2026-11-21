@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { AnimatedNumber } from "@/components/animated-number";
+import { ChapterNav } from "@/components/chapter-nav";
 import { BoxIcon } from "@/components/art/box-icon";
 import { Staircase } from "@/components/art/staircase";
-import { CountdownInline } from "@/components/countdown-inline";
 import { Delta, EntryItem } from "@/components/entry-item";
 import { FollowLinks } from "@/components/follow-links";
 import { HeroAvatar } from "@/components/hero-avatar";
@@ -79,9 +79,18 @@ export function JourneyView({ journey }: { journey: Journey }) {
 
   return (
     <main className="money-glow flex-1 overflow-x-clip">
+      <ChapterNav
+        items={[
+          { id: "progress", label: "وصل لفين" },
+          ...(hasPlan ? [{ id: "plan", label: "الخطة" }] : []),
+          { id: "how", label: "إزاي" },
+          ...(journey.projects.length > 0 ? [{ id: "projects", label: "المشاريع" }] : []),
+          { id: "story", label: "اللي حصل" },
+        ]}
+      />
       <div className="mx-auto max-w-2xl px-5">
         {/* المقدمة */}
-        <section className="flex flex-col items-center pt-10 text-center sm:pt-16">
+        <section id="top" className="flex flex-col items-center pt-10 text-center sm:pt-16">
           {workplace && (
             <Link
               href={`/p/${workplace.slug}`}
@@ -107,70 +116,54 @@ export function JourneyView({ journey }: { journey: Journey }) {
           </h1>
           <p className="mt-5 max-w-lg text-lg text-muted">{CREATOR.tagline}</p>
           <div className="mt-8">
-            <FollowLinks />
+            <FollowLinks primaryOnly />
+          </div>
+
+          {/* جملة النهارده: سطر هادي تحت المقدمة */}
+          <div className="mt-12 w-full rounded-2xl border border-gold/20 bg-gold/5 px-5 py-4">
+            <p className="text-[11px] font-bold tracking-widest text-gold">جملة النهارده</p>
+            <p className="hand mt-1 text-2xl leading-relaxed sm:text-3xl">“{todayLine}”</p>
           </div>
         </section>
 
-        {/* وصل لفين */}
-        <section className="mt-24">
+        {/* وصل لفين: الفلوس والوقت */}
+        <section id="progress" className="mt-20 scroll-mt-20">
           <Chapter n={chapterOf("progress")} title="وصل لفين؟" />
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
-            <div>
-              <p className="text-sm text-muted">بدأ بـ</p>
-              <p className="mt-1 text-2xl font-black text-muted sm:text-3xl">{formatEGP(CREATOR.start)}</p>
+
+          <Reveal>
+            <div className="rounded-3xl border border-border bg-gradient-to-b from-surface-2 to-surface p-6">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm text-muted">معاه دلوقتي</p>
+                  <p className="mt-1 text-5xl font-black text-gold">
+                    <AnimatedNumber value={journey.balance} />
+                  </p>
+                  <p className="mt-1 text-sm text-muted">بدأ بـ {formatEGP(CREATOR.start)} جنيه</p>
+                </div>
+                <div className="text-left">
+                  <p className="text-3xl font-black text-gold" dir="ltr">
+                    ×{journey.multiple.toFixed(1)}
+                  </p>
+                  <p className="text-xs text-muted">الهدف ×{target}</p>
+                </div>
+              </div>
+              <div className="mt-6 h-3 overflow-hidden rounded-full bg-background">
+                <div className="h-full rounded-full bg-gradient-to-l from-gold to-green transition-all duration-1000" style={{ width: `${Math.max(pct, 1.5)}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between text-xs text-muted" dir="ltr">
+                <span>{formatEGP(CREATOR.start / 1000)}K</span>
+                <span className="font-bold text-green">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
+                <span>1M</span>
+              </div>
             </div>
-            <span className="text-3xl text-muted/50">←</span>
-            <div>
-              <p className="text-sm text-muted">معاه دلوقتي</p>
-              <p className="mt-1 text-4xl font-black text-gold sm:text-5xl">
-                <AnimatedNumber value={journey.balance} />
-              </p>
-            </div>
-          </div>
-          <p className="mt-6 text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-4 py-1.5">
-              <span className="text-2xl font-black text-gold">×{journey.multiple.toFixed(1)}</span>
-              <span className="text-sm text-muted">
-                من ×{target} · {pct.toFixed(pct < 10 ? 1 : 0)}% من المليون
-              </span>
-            </span>
-          </p>
-          <div className="mt-12">
+          </Reveal>
+
+          <div className="mt-10">
             <Staircase step={stepFor(journey.balance)} />
           </div>
-          <div className="mt-4 text-center">
-            <CountdownInline />
-          </div>
 
-          <Reveal className="mt-14">
-            <Terminal
-              prompt={CREATOR.handle + "@1m:~$"}
-              command="./progress --live"
-              output={[
-                { key: "start", value: formatEGP(CREATOR.start) + " EGP", tone: "muted" },
-                { key: "balance", value: formatEGP(journey.balance) + " EGP  (x" + journey.multiple.toFixed(1) + ")" },
-                { key: "target", value: formatEGP(GOAL) + " EGP  (x" + target + ")", tone: "muted" },
-                { key: "remaining", value: formatEGP(pace.remaining) + " EGP", tone: pace.remaining ? "red" : "green" },
-                { key: "wins/falls", value: stats.wins + " / " + stats.falls, tone: "green" },
-                { key: "status", value: pace.remaining ? "running... 🔥" : "DONE ✅", tone: pace.remaining ? "green" : "gold" },
-              ]}
-            />
-          </Reveal>
-        </section>
-
-        {/* جملة النهارده */}
-        <section className="mt-28">
-          <Reveal className="text-center">
-            <p className="text-xs font-bold tracking-widest text-gold">جملة النهارده</p>
-            <p className="hand mx-auto mt-4 max-w-md text-4xl leading-[1.6] sm:text-5xl">“{todayLine}”</p>
-          </Reveal>
-        </section>
-
-        {/* السنة: ٣٦٥ مربع */}
-        <section className="mt-28">
-          <Reveal className="mb-10 text-center">
-            <h2 className="text-3xl font-black">السنة فيها ٣٦٥ يوم</h2>
-            <p className="mt-1 text-muted">ودي {YEAR}، يوم يوم.</p>
+          <Reveal className="mt-16 mb-6 text-center">
+            <h3 className="text-xl font-black">والوقت: {YEAR} يوم يوم</h3>
           </Reveal>
           <Reveal>
             <YearGrid activity={activity} />
@@ -179,21 +172,36 @@ export function JourneyView({ journey }: { journey: Journey }) {
 
         {/* الخطة */}
         {hasPlan && (
-          <section className="mt-28">
+          <section id="plan" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("plan")} title="الخطة" sub="هعمل إيه عشان أوصل للمليون." />
             <PlanBoard answer={journey.answer} steps={journey.steps} projects={journey.projects} />
           </section>
         )}
 
         {/* إزاي هيحصل */}
-        <section className="mt-28">
+        <section id="how" className="mt-20 scroll-mt-20">
           <Chapter n={chapterOf("how")} title="إزاي هيحصل؟" sub="مش حظ. دي الطريقة والعدّة." />
-          <HowSection />
+          <HowSection
+            terminal={
+              <Terminal
+                prompt={CREATOR.handle + "@1m:~$"}
+                command="./progress --live"
+                output={[
+                  { key: "start", value: formatEGP(CREATOR.start) + " EGP", tone: "muted" },
+                  { key: "balance", value: formatEGP(journey.balance) + " EGP  (x" + journey.multiple.toFixed(1) + ")" },
+                  { key: "target", value: formatEGP(GOAL) + " EGP  (x" + target + ")", tone: "muted" },
+                  { key: "remaining", value: formatEGP(pace.remaining) + " EGP", tone: pace.remaining ? "red" : "green" },
+                  { key: "wins/falls", value: stats.wins + " / " + stats.falls, tone: "green" },
+                  { key: "status", value: pace.remaining ? "running... 🔥" : "DONE ✅", tone: pace.remaining ? "green" : "gold" },
+                ]}
+              />
+            }
+          />
         </section>
 
         {/* المشاريع: على الموبايل بتتقلب بالعرض، وعلى الكبير جنب بعض */}
         {journey.projects.length > 0 && (
-          <section className="mt-28">
+          <section id="projects" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("projects")} title="المشاريع" sub="كل مشروع قصة لوحده. دوس على أي واحد وشوف قصته." />
             <Reveal>
               <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0">
@@ -209,7 +217,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
         )}
 
         {/* اللي حصل: ربع ربع، من الأول للآخر */}
-        <section className="mt-28">
+        <section id="story" className="mt-20 scroll-mt-20">
           <Chapter n={chapterOf("story")} title="اللي حصل" sub="من الأول للآخر، ربع ربع." />
 
           {journey.entries.length > 0 && (
@@ -311,7 +319,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
         </section>
 
         {/* يتبع */}
-        <section className="mt-28 pb-28 text-center">
+        <section className="mt-20 pb-24 text-center">
           <Reveal>
             <p className="hand text-5xl text-gold">يتبع...</p>
             <p className="mt-6 text-xl font-black">عاوز تعرف هيوصل ولا لأ؟</p>

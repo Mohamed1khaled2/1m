@@ -1,21 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { generateShotList, generateVideo, saveStyleSamples, type ShotList } from "@/app/admin/ai-actions";
-import { ShotListView } from "@/components/admin/shot-list-view";
+import { generateVideoPackage, saveStyleSamples, suggestIdeas, type VideoPackage } from "@/app/admin/ai-actions";
+import { VideoPackageView } from "@/components/admin/video-package-view";
 
-type Mode = "director" | "tiktok" | "week" | "ideas" | "ask";
-
-const MODES: { key: Mode; label: string; icon: string }[] = [
-  { key: "director", label: "المخرج", icon: "🎥" },
-  { key: "tiktok", label: "سكريبت", icon: "🎬" },
-  { key: "week", label: "فيديو الأسبوع", icon: "📺" },
-  { key: "ideas", label: "أفكار", icon: "💡" },
-  { key: "ask", label: "اسأله", icon: "💬" },
-];
+type Source = { kind: "idea" } | { kind: "entry"; id: number; title: string } | { kind: "week" };
 
 /**
- * مساعد الفيديوهات: عارف القصة كلها من الموقع، وبيكتب بأسلوبك من الأمثلة اللي بتحطها.
+ * المساعد: تقوله الفكرة بكلامك (أو تختار يومية / الأسبوع)، ودوسة واحدة بيعمل الفيديو كامل:
+ * السكريبت وورقة التصوير والنشر. عارف القصة كلها من الموقع، وأسلوبك من الأمثلة.
  */
 export function VideoAssistant({
   entries,
@@ -24,63 +17,132 @@ export function VideoAssistant({
   entries: { id: number; title: string; happened_on: string }[];
   initialStyle: string;
 }) {
-  const [mode, setMode] = useState<Mode>("director");
-  // المخرج: من يومية ولا من فكرة جديدة
-  const [source, setSource] = useState<"entry" | "idea">(entries.length ? "entry" : "idea");
   const [idea, setIdea] = useState("");
-  const [shots, setShots] = useState<ShotList | null>(null);
-  const [entryId, setEntryId] = useState<number | "">(entries[0]?.id ?? "");
-  const [prompt, setPrompt] = useState("");
-  const [result, setResult] = useState<{ text?: string; error?: string }>({});
-  const [copied, setCopied] = useState(false);
-  const [pending, start] = useTransition();
+  const [source, setSource] = useState<Source>({ kind: "idea" });
+  const [pkg, setPkg] = useState<VideoPackage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<string[]>([]);
+  const [making, startMaking] = useTransition();
+  const [thinking, startThinking] = useTransition();
 
   const [style, setStyle] = useState(initialStyle);
-  const [styleOpen, setStyleOpen] = useState(!initialStyle);
+  const [styleOpen, setStyleOpen] = useState(false);
   const [styleSaved, setStyleSaved] = useState<string | null>(null);
 
-  function run() {
-    setCopied(false);
-    start(async () => {
-      if (mode === "director") {
-        setResult({});
-        setShots(null);
-        const res = source === "entry" ? await generateShotList({ entryId: Number(entryId) }) : await generateShotList({ idea });
-        if (res.error) return setResult({ error: res.error });
-        return setShots(res.list ?? null);
-      }
-      setShots(null);
-      if (mode === "tiktok") {
-        if (!entryId) return setResult({ error: "اختار يومية الأول" });
-        setResult(await generateVideo({ mode, entryId: Number(entryId) }));
-      } else if (mode === "ask") {
-        setResult(await generateVideo({ mode, prompt }));
-      } else {
-        setResult(await generateVideo({ mode }));
-      }
+  const ready = source.kind !== "idea" || idea.trim().length >= 3;
+
+  function make() {
+    setError(null);
+    setPkg(null);
+    startMaking(async () => {
+      const res = await generateVideoPackage(
+        source.kind === "entry" ? { entryId: source.id } : source.kind === "week" ? { week: true } : { idea },
+      );
+      if (res.error) return setError(res.error);
+      setPkg(res.pkg ?? null);
     });
   }
 
-  async function copy() {
-    if (!result.text) return;
-    await navigator.clipboard.writeText(result.text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  function inspire() {
+    setError(null);
+    startThinking(async () => {
+      const res = await suggestIdeas();
+      if (res.error) return setError(res.error);
+      setIdeas(res.ideas ?? []);
+    });
   }
 
+  const chip = (active: boolean) =>
+    `shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${active ? "border-gold bg-gold/15 font-bold text-gold" : "border-border text-muted hover:border-gold/40 hover:text-foreground"}`;
+
   return (
-    <div className="space-y-4">
-      {/* أسلوبك */}
+    <div className="space-y-6">
+      {/* ١. الفكرة */}
+      <div className="rounded-3xl border border-gold/30 bg-gradient-to-b from-surface-2 to-surface p-5">
+        <label htmlFor="idea" className="text-lg font-black">
+          عندك فكرة فيديو؟
+        </label>
+        <p className="mt-1 text-sm text-muted">اكتبها بكلامك، وهو يعمل الباقي: السكريبت، واللقطات، والكابشن.</p>
+
+        {source.kind === "idea" ? (
+          <textarea
+            id="idea"
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+            rows={3}
+            maxLength={1500}
+            placeholder="مثلاً: خسرت ١٠ آلاف في بضاعة ماتباعتش / أول يوم أشتغل على NileBand"
+            className="input mt-4 resize-y text-lg leading-relaxed"
+          />
+        ) : (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-gold/5 px-4 py-3">
+            <p className="font-bold">{source.kind === "week" ? "📺 فيديو الأسبوع (من اللي نشرته آخر ٧ أيام)" : `📌 ${source.title}`}</p>
+            <button onClick={() => setSource({ kind: "idea" })} className="shrink-0 text-sm text-muted hover:text-foreground">
+              ✕ اكتب فكرة بدالها
+            </button>
+          </div>
+        )}
+
+        {/* اختصارات */}
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          <button onClick={inspire} disabled={thinking} className={chip(false)}>
+            {thinking ? "بيفكر..." : "💡 مش عارف؟ اقترحلي"}
+          </button>
+          <button onClick={() => setSource({ kind: "week" })} className={chip(source.kind === "week")}>
+            📺 فيديو الأسبوع
+          </button>
+          {entries.slice(0, 8).map((e) => (
+            <button
+              key={e.id}
+              onClick={() => setSource({ kind: "entry", id: e.id, title: e.title })}
+              className={chip(source.kind === "entry" && source.id === e.id)}
+            >
+              📌 {e.title}
+            </button>
+          ))}
+        </div>
+
+        {ideas.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted">دوس على أي فكرة:</p>
+            {ideas.map((it) => (
+              <button
+                key={it}
+                onClick={() => {
+                  setSource({ kind: "idea" });
+                  setIdea(it);
+                  setIdeas([]);
+                }}
+                className="block w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-right text-sm transition hover:border-gold/50"
+              >
+                💡 {it}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button onClick={make} disabled={making || !ready} className="btn mt-5 w-full py-4 text-lg">
+          {making ? "بيكتب ويخرج... (ثواني)" : "اعمل الفيديو كامل ✨"}
+        </button>
+      </div>
+
+      {error && <p className="rounded-xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-400">{error}</p>}
+
+      {/* ٢. الفيديو */}
+      {pkg && <VideoPackageView pkg={pkg} />}
+
+      {/* ٣. أسلوبك (اختياري) */}
       <div className="rounded-2xl border border-border bg-surface p-4">
         <button onClick={() => setStyleOpen((o) => !o)} className="flex w-full items-center justify-between text-right">
-          <span className="font-bold">🗣️ أسلوبك {initialStyle ? "" : <span className="text-xs font-normal text-gold">(ابدأ من هنا)</span>}</span>
+          <span>
+            <span className="font-bold">🗣️ علّمه أسلوبك</span>
+            <span className="mr-2 text-xs text-muted">{initialStyle ? "متحفظ ✓" : "اختياري، بس بيفرق"}</span>
+          </span>
           <span className="text-muted">{styleOpen ? "▲" : "▼"}</span>
         </button>
         {styleOpen && (
           <div className="mt-3 space-y-2">
-            <p className="text-sm text-muted">
-              الصق ٣–٥ أمثلة من كلامك في فيديوهاتك أو كابشناتك القديمة. المساعد هيكتب زيك من غيرها بس هيبقى أحسن بيها.
-            </p>
+            <p className="text-sm text-muted">الصق ٣–٥ أمثلة من كلامك في فيديوهاتك أو كابشناتك القديمة، وهو هيكتب زيك.</p>
             <textarea
               value={style}
               onChange={(e) => setStyle(e.target.value)}
@@ -97,112 +159,13 @@ export function VideoAssistant({
                 }}
                 className="btn-ghost"
               >
-                احفظ الأسلوب
+                احفظ
               </button>
               {styleSaved && <span className={`text-sm ${styleSaved.startsWith("اتحفظ") ? "text-green" : "text-red-400"}`}>{styleSaved}</span>}
             </div>
           </div>
         )}
       </div>
-
-      {/* نوع الفيديو */}
-      <div className="grid grid-cols-5 gap-2">
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            onClick={() => setMode(m.key)}
-            className={`flex flex-col items-center gap-1 rounded-xl border py-3 text-xs transition sm:text-sm ${
-              mode === m.key ? "border-gold bg-gold/10 font-bold" : "border-border text-muted hover:border-gold/40"
-            }`}
-          >
-            <span className="text-xl">{m.icon}</span>
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {mode === "director" && (
-        <div className="space-y-3">
-          <p className="text-sm text-muted">المخرج هيقولك كل لقطة: الكاميرا فين، تعمل إيه، تبص فين، تقول إيه، ومكتوب إيه على الشاشة.</p>
-          <div className="flex gap-2 text-sm">
-            <button
-              onClick={() => setSource("entry")}
-              disabled={!entries.length}
-              className={`rounded-full border px-3 py-1.5 ${source === "entry" ? "border-gold bg-gold/10 font-bold" : "border-border text-muted"} disabled:opacity-40`}
-            >
-              من يومية
-            </button>
-            <button
-              onClick={() => setSource("idea")}
-              className={`rounded-full border px-3 py-1.5 ${source === "idea" ? "border-gold bg-gold/10 font-bold" : "border-border text-muted"}`}
-            >
-              من فكرة
-            </button>
-          </div>
-          {source === "entry" ? (
-            <select value={entryId} onChange={(e) => setEntryId(Number(e.target.value))} className="input">
-              {entries.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.happened_on} · {e.title}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <textarea
-              value={idea}
-              onChange={(e) => setIdea(e.target.value)}
-              rows={3}
-              maxLength={1000}
-              placeholder="مثلاً: يوم في حياتي وأنا بشتغل على NileBand / أول مرة أقول رقمي قدام الناس"
-              className="input resize-y"
-            />
-          )}
-        </div>
-      )}
-
-      {mode === "tiktok" &&
-        (entries.length ? (
-          <select value={entryId} onChange={(e) => setEntryId(Number(e.target.value))} className="input">
-            {entries.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.happened_on} · {e.title}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <p className="text-sm text-muted">انشر يومية الأول وبعدين اعمل منها فيديو.</p>
-        ))}
-      {mode === "week" && <p className="text-sm text-muted">هيجمع اللي نشرته في آخر ٧ أيام ويطلعلك فيديو اليوتيوب بتاع الأسبوع.</p>}
-      {mode === "ideas" && <p className="text-sm text-muted">٥ أفكار فيديوهات جاية من القصة لحد دلوقتي.</p>}
-      {mode === "ask" && (
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={3}
-          maxLength={2000}
-          placeholder="مثلاً: اكتبلي فيديو عن ليه بعت إثبات / إزاي أصوّر فيديو عن الوقعة بتاعة امبارح"
-          className="input resize-y"
-        />
-      )}
-
-      <button
-        onClick={run}
-        disabled={pending || (mode === "ask" && prompt.trim().length < 3) || (mode === "director" && source === "idea" && idea.trim().length < 3)}
-        className="btn w-full py-4 text-lg"
-      >
-        {pending ? (mode === "director" ? "المخرج بيفكر..." : "بيكتب...") : mode === "director" ? "اعملّي ورقة التصوير 🎥" : "اكتبلي ✨"}
-      </button>
-
-      {result.error && <p className="rounded-xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-400">{result.error}</p>}
-      {shots && <ShotListView list={shots} />}
-      {result.text && (
-        <div className="relative rounded-2xl border border-gold/30 bg-surface p-5">
-          <button onClick={copy} className="btn-ghost absolute top-3 left-3 py-1 text-xs">
-            {copied ? "اتنسخ ✓" : "انسخ"}
-          </button>
-          <div className="pt-6 text-[15px] leading-loose whitespace-pre-wrap">{result.text}</div>
-        </div>
-      )}
     </div>
   );
 }
