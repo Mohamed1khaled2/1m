@@ -1,11 +1,12 @@
 export const YEAR = 2027;
 export const GOAL = 1_000_000;
 
+/** كل ربع مشروع واحد بس (slug من جدول projects)، عشان محدش يتشتت. */
 export const QUARTERS = [
-  { q: 1, label: "الربع الأول", months: "يناير – مارس" },
-  { q: 2, label: "الربع التاني", months: "أبريل – يونيو" },
-  { q: 3, label: "الربع التالت", months: "يوليو – سبتمبر" },
-  { q: 4, label: "الربع الأخير", months: "أكتوبر – ديسمبر" },
+  { q: 1, label: "الربع الأول", months: "يناير – مارس", project: "nileband" },
+  { q: 2, label: "الربع التاني", months: "أبريل – يونيو", project: "centerid" },
+  { q: 3, label: "الربع التالت", months: "يوليو – سبتمبر", project: "trendo" },
+  { q: 4, label: "الربع الأخير", months: "أكتوبر – ديسمبر", project: "ethbat" },
 ] as const;
 
 /**
@@ -21,6 +22,13 @@ export function now(): Date {
 export function isQuarterOpen(q: number, at: Date = now()): boolean {
   const start = new Date(Date.UTC(YEAR, (q - 1) * 3, 1));
   return at >= start;
+}
+
+/** الربع اللي شغالين على مشروعه دلوقتي: قبل السنة الأول، وبعدها الأخير. */
+export function focusQuarter(at: Date = now()): number {
+  if (at.getUTCFullYear() < YEAR) return 1;
+  if (at.getUTCFullYear() > YEAR) return 4;
+  return Math.floor(at.getUTCMonth() / 3) + 1;
 }
 
 /** الربع اللي خلص يوم `at` (بيستخدمه الكرون في أول يوم من كل ربع). */

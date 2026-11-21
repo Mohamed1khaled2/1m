@@ -7,7 +7,7 @@ import { SYSTEM_INSTRUCTION, buildContext } from "@/lib/ai-context";
 import { CREATOR, GEAR } from "@/lib/creator";
 import { KINDS, loadJourney } from "@/lib/journey";
 import { createAdminClient } from "@/lib/supabase/server";
-import { formatEGP } from "@/lib/year";
+import { QUARTERS, YEAR, focusQuarter, formatEGP } from "@/lib/year";
 
 const STYLE_KEY = "style_samples";
 
@@ -146,6 +146,8 @@ export async function generateVideoPackage(input: {
   idea?: string;
   entryId?: number;
   week?: boolean;
+  /** الفكرة لتيك توك (قصير) ولا ليوتيوب (حلقة الأسبوع الطويلة) */
+  format?: "tiktok" | "youtube";
 }): Promise<{ pkg?: VideoPackage; error?: string }> {
   await requireAdmin();
   const ai = client();
@@ -168,7 +170,10 @@ export async function generateVideoPackage(input: {
   } else {
     const idea = z.string().trim().min(3).max(1500).safeParse(input.idea ?? "");
     if (!idea.success) return { error: "اكتب الفكرة الأول" };
-    subject = `فيديو تيك توك عن الفكرة دي (بكلامه): ${idea.data}`;
+    subject =
+      input.format === "youtube"
+        ? `حلقة اليوتيوب بتاعة الأسبوع (من ٥ لـ ٨ دقايق، أجزاء أكتر) عن الفكرة دي (بكلامه): ${idea.data}`
+        : `فيديو تيك توك قصير (من ٣٠ لـ ٧٥ ثانية) عن الفكرة دي (بكلامه): ${idea.data}`;
   }
 
   try {
@@ -200,7 +205,7 @@ export async function suggestIdeas(): Promise<{ ideas?: string[]; error?: string
   try {
     const res = await ai.models.generateContent({
       model: MODEL(),
-      contents: `${buildContext(journey, style)}\n\n---\n\n# المطلوب\nاقترح ٦ أفكار فيديوهات تيك توك جاية من القصة لحد دلوقتي (مشاريعه، رقمه، اللي حصل، الخطة). كل فكرة جملة واحدة قصيرة بلسانه، مرتبة من الأقوى.`,
+      contents: `${buildContext(journey, style)}\n\n---\n\n# المطلوب\nاقترح ٦ أفكار فيديوهات تيك توك جاية من القصة لحد دلوقتي، عن مشروع الربع ده أساساً (رقمه، اللي حصل، الخطة). كل فكرة جملة واحدة قصيرة بلسانه، مرتبة من الأقوى.`,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.9,
@@ -210,6 +215,79 @@ export async function suggestIdeas(): Promise<{ ideas?: string[]; error?: string
     });
     const ideas = JSON.parse(res.text ?? "[]") as string[];
     return Array.isArray(ideas) && ideas.length ? { ideas } : { error: "مارجعش أفكار، جرّب تاني" };
+  } catch (e) {
+    return { error: geminiError(e) };
+  }
+}
+
+/** خطة ربع لمشروع واحد: هدف، وتحضير، وكل شهر خطواته، والتزامات كل أسبوع، وفيديوهات. */
+export type QuarterPlan = {
+  goal: string;
+  prep: string[];
+  months: { month: string; focus: string; steps: string[] }[];
+  weekly: string[];
+  videos: string[];
+  measure: string[];
+  risks: string[];
+};
+
+const QUARTER_PLAN_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    goal: S("هدف الربع في جملة واحدة: المشروع هيوصل لفين في آخر الربع"),
+    prep: LIST("خطوات قبل ما الربع يبدأ (لو لسه مابدأش)، وإلا فاضية"),
+    months: {
+      type: Type.ARRAY,
+      description: "٣ شهور الربع بالترتيب",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          month: S("اسم الشهر"),
+          focus: S("الشهر ده عن إيه، في جملة"),
+          steps: LIST("من ٣ لـ ٥ خطوات ليها نهاية، كل خطوة جملة قصيرة تتعلّم عليها لما تخلص"),
+        },
+        required: ["month", "focus", "steps"],
+      },
+    },
+    weekly: LIST("من ٢ لـ ٤ التزامات بتتكرر كل أسبوع طول الربع"),
+    videos: LIST("٦ أفكار فيديوهات للربع بتحكي رحلة المشروع، بالترتيب"),
+    measure: LIST("٣ أرقام يقيس بيها إن الربع نجح (أهداف، مش حقائق)"),
+    risks: LIST("أكبر ٣ حاجات ممكن توقّعه، وجنب كل واحدة هيعمل إيه"),
+  },
+  required: ["goal", "prep", "months", "weekly", "videos", "measure", "risks"],
+};
+
+export async function generateQuarterPlan(notes: string): Promise<{ plan?: QuarterPlan; error?: string }> {
+  await requireAdmin();
+  const ai = client();
+  if (!ai) return { error: NO_KEY };
+  const extra = z.string().trim().max(2000).safeParse(notes);
+  if (!extra.success) return { error: "الملاحظات طويلة شوية (ألفين حرف بالكتير)" };
+
+  const [journey, style] = await Promise.all([loadJourney(), loadStyleSamples().catch(() => "")]);
+  const q = QUARTERS[focusQuarter() - 1];
+  const project = journey.projects.find((p) => p.slug === q.project);
+  if (!project) return { error: `مشروع الربع (${q.project}) مش موجود في المشاريع` };
+
+  try {
+    const res = await ai.models.generateContent({
+      model: MODEL(),
+      contents: `${buildContext(journey, style)}\n\n---\n\n# المطلوب
+اعمل خطة Q${q.q} (${q.months} ${YEAR}) لمشروع ${project.name} بس.
+- الهدف إن المشروع يتحرك خطوة حقيقية ناحية الفلوس في الـ ٣ شهور دول، من المرحلة اللي هو فيها دلوقتي.
+- هو شغال ${CREATOR.role} بدوام، فالخطة لازم تتعمل جنب الشغل: خطوات صغيرة وواضحة، مش خطة شركة.
+- كل خطوة حاجة يقدر يعملها ويعلّم عليها، مش كلام عام زي "سوّق كويس".
+- الأرقام في "measure" أهداف بيحطها لنفسه، متكتبهاش كأنها حصلت.${extra.data ? `\n\n# ملاحظاته\n${extra.data}` : ""}`,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.7,
+        responseMimeType: "application/json",
+        responseSchema: QUARTER_PLAN_SCHEMA,
+      },
+    });
+    const plan = JSON.parse(res.text ?? "{}") as QuarterPlan;
+    if (!Array.isArray(plan.months) || plan.months.length === 0) return { error: "مارجعش خطة، جرّب تاني" };
+    return { plan };
   } catch (e) {
     return { error: geminiError(e) };
   }

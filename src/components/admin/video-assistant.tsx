@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { generateVideoPackage, saveStyleSamples, suggestIdeas, type VideoPackage } from "@/app/admin/ai-actions";
 import { VideoPackageView } from "@/components/admin/video-package-view";
 import { LottieAnimation } from "@/components/lottie-animation";
+import { QuarterVideos, type QuarterVideo, type VideoFormat } from "@/components/admin/quarter-videos";
 
 type Source = { kind: "idea" } | { kind: "entry"; id: number; title: string } | { kind: "week" };
 
@@ -14,11 +15,15 @@ type Source = { kind: "idea" } | { kind: "entry"; id: number; title: string } | 
 export function VideoAssistant({
   entries,
   initialStyle,
+  quarter,
 }: {
   entries: { id: number; title: string; happened_on: string }[];
   initialStyle: string;
+  /** فيديوهات مشروع الربع، لو ليه خطة */
+  quarter?: { slug: string; project: string; q: number; current: number; videos: QuarterVideo[]; links: Record<string, string> };
 }) {
   const [idea, setIdea] = useState("");
+  const [format, setFormat] = useState<VideoFormat>("tiktok");
   const [source, setSource] = useState<Source>({ kind: "idea" });
   const [pkg, setPkg] = useState<VideoPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +42,7 @@ export function VideoAssistant({
     setPkg(null);
     startMaking(async () => {
       const res = await generateVideoPackage(
-        source.kind === "entry" ? { entryId: source.id } : source.kind === "week" ? { week: true } : { idea },
+        source.kind === "entry" ? { entryId: source.id } : source.kind === "week" ? { week: true } : { idea, format },
       );
       if (res.error) return setError(res.error);
       setPkg(res.pkg ?? null);
@@ -58,12 +63,35 @@ export function VideoAssistant({
 
   return (
     <div className="space-y-6">
+      {quarter && (
+        <QuarterVideos
+          {...quarter}
+          onPick={(text, kind) => {
+            setSource({ kind: "idea" });
+            setIdea(text);
+            setFormat(kind);
+            document.getElementById("idea")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+        />
+      )}
+
       {/* ١. الفكرة */}
       <div className="rounded-3xl border border-gold/30 bg-gradient-to-b from-surface-2 to-surface p-5">
         <label htmlFor="idea" className="text-lg font-black">
           عندك فكرة فيديو؟
         </label>
         <p className="mt-1 text-sm text-muted">اكتبها بكلامك، وهو يعمل الباقي: السكريبت، واللقطات، والكابشن.</p>
+
+        {source.kind === "idea" && (
+          <div className="mt-4 flex gap-2" role="group" aria-label="نوع الفيديو">
+            <button onClick={() => setFormat("tiktok")} className={chip(format === "tiktok")}>
+              تيك توك · قصير
+            </button>
+            <button onClick={() => setFormat("youtube")} className={chip(format === "youtube")}>
+              يوتيوب · حلقة الأسبوع
+            </button>
+          </div>
+        )}
 
         {source.kind === "idea" ? (
           <textarea

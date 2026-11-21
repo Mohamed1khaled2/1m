@@ -3,15 +3,17 @@ import { logout } from "@/app/admin/actions";
 import { loadStyleSamples } from "@/app/admin/ai-actions";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { CheersList, type Cheer } from "@/components/admin/cheers-list";
-import { DeleteButton } from "@/components/admin/delete-button";
+import { EntriesList } from "@/components/admin/entries-list";
 import { EntryForm } from "@/components/admin/entry-form";
 import { PlanForm } from "@/components/admin/plan-form";
 import { ProjectsAdmin } from "@/components/admin/projects-admin";
 import { VideoAssistant } from "@/components/admin/video-assistant";
 import { requireAdmin } from "@/lib/admin-auth";
-import { KINDS, loadJourney } from "@/lib/journey";
+import { loadJourney } from "@/lib/journey";
 import { createAdminClient } from "@/lib/supabase/server";
-import { formatEGP } from "@/lib/year";
+import { loadEpisodeLinks } from "@/lib/episodes";
+import { QUARTER_PLANS, weekOfQuarter } from "@/lib/quarter-plan";
+import { QUARTERS, YEAR, focusQuarter, formatEGP, now } from "@/lib/year";
 
 export const metadata = { robots: { index: false } };
 
@@ -34,6 +36,10 @@ export default async function AdminPage() {
     .select("id, name, created_at")
     .order("created_at", { ascending: false })
     .limit(100);
+  // مشروع الربع ده: اليوميات بتتربط بيه لوحدها، وخطة الربع بتتعمل عليه
+  const focusQ = QUARTERS[focusQuarter() - 1];
+  const focus = journey.projects.find((p) => p.slug === focusQ.project);
+  const episodeLinks = await loadEpisodeLinks(focusQ.project);
 
   return (
     <main className="money-glow flex-1">
@@ -46,6 +52,16 @@ export default async function AdminPage() {
                 جنيه · <span dir="ltr">×{journey.multiple.toFixed(1)}</span>
               </span>
             </p>
+            {focus && (
+              <p className="mt-1 text-sm">
+                <span className="text-muted">الربع ده: </span>
+                <span className="font-black text-gold">{focus.name}</span>
+                <span className="text-muted">
+                  {" "}
+                  · Q{focusQ.q} · {focusQ.months}
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             <Link href="/" className="btn-ghost">
@@ -66,33 +82,11 @@ export default async function AdminPage() {
               content: (
                 <>
                   <Intro title="حصل إيه النهارده؟" text="بيظهر للناس في القصة على طول، والمبلغ بيزوّد أو ينقّص الرصيد." />
-                  <EntryForm projects={journey.projects.map((p) => ({ id: p.id, name: p.name }))} />
+                  <EntryForm projects={journey.projects.map((p) => ({ id: p.id, name: p.name }))} defaultProjectId={focus?.id} />
 
                   <div className="mt-14">
-                    <Intro title={`اللي نشرته (${journey.entries.length})`} text="لو كتبت حاجة غلط امسحها من هنا." />
-                    {journey.entries.length === 0 ? (
-                      <p className="text-muted">لسه ما نشرتش حاجة.</p>
-                    ) : (
-                      <ul className="divide-y divide-border rounded-2xl border border-border bg-surface px-4">
-                        {journey.entries.map((e) => (
-                          <li key={e.id} className="flex items-center justify-between gap-3 py-3">
-                            <div className="min-w-0">
-                              <p className="text-xs text-muted">
-                                {KINDS[e.kind].icon} {e.happened_on}
-                                {e.amount !== 0 && (
-                                  <span className={`mr-2 font-bold ${e.amount > 0 ? "text-green" : "text-red-400"}`} dir="ltr">
-                                    {e.amount > 0 ? "+" : "−"}
-                                    {formatEGP(Math.abs(e.amount))}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="truncate font-bold">{e.title}</p>
-                            </div>
-                            <DeleteButton id={e.id} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    <Intro title={`اللي نشرته (${journey.entries.length})`} text="عدّل أي حاجة أو امسحها من هنا، والتعديل بيبان في الموقع على طول." />
+                    <EntriesList entries={journey.entries} projects={journey.projects.map((p) => ({ id: p.id, name: p.name }))} />
                   </div>
                 </>
               ),
@@ -107,6 +101,18 @@ export default async function AdminPage() {
                   <VideoAssistant
                     entries={journey.entries.slice(0, 40).map((e) => ({ id: e.id, title: e.title, happened_on: e.happened_on }))}
                     initialStyle={style}
+                    quarter={
+                      focus && QUARTER_PLANS[focus.slug]
+                        ? {
+                            slug: focus.slug,
+                            links: episodeLinks,
+                            project: focus.name,
+                            q: focusQ.q,
+                            current: weekOfQuarter(YEAR, focusQ.q, now()),
+                            videos: QUARTER_PLANS[focus.slug].videos,
+                          }
+                        : undefined
+                    }
                   />
                 </>
               ),
@@ -130,7 +136,11 @@ export default async function AdminPage() {
               content: (
                 <>
                   <Intro title="الخطة" text="الإجابة والخطوات. علّم على الخطوة لما تخلّصها." />
-                  <PlanForm initialAnswer={journey.answer} initialSteps={journey.steps} />
+                  <PlanForm
+                    initialAnswer={journey.answer}
+                    initialSteps={journey.steps}
+                    quarter={focus && { q: focusQ.q, months: focusQ.months, year: YEAR, name: focus.name }}
+                  />
                 </>
               ),
             },

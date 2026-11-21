@@ -62,8 +62,8 @@ create index if not exists entries_project on public.entries (project_id);
 insert into public.projects (slug, name, tagline, url, stage, kind, sort) values
   ('nileband', 'NileBand', 'أبلكيشن سوار رياضي من غير شاشة، متصمم ومتجمّع في مصر.', 'https://nilebandlandingpage.vercel.app/ar', 'building', 'mine', 1),
   ('ethbat', 'إثبات', 'منصة بتجمع تقييمات العملا للمتاجر الأونلاين.', 'https://ethbat.online', 'ready', 'mine', 2),
-  ('chatec', 'Chatec', 'مساعد مبيعات بالذكاء الاصطناعي بيحوّل زوار المتجر لمبيعات.', 'https://chatec.online', 'ready', 'mine', 3),
   ('centerid', 'CenterID', 'نظام لمراكز الدروس: كل طالب ليه بروفايل وQR، والحضور والفلوس بيتسجلوا لوحدهم.', 'https://centerid.systems', 'ready', 'mine', 4),
+  ('trendo', 'Trendo', 'تسوّق من فيديوهات قصيرة: بتقلّب زي تيك توك وتشتري المنتج من الفيديو نفسه.', 'https://trendo-wine.vercel.app', 'building', 'mine', 6),
   ('elct', 'ELCT', 'الجمعية المصرية للتدريب والكوتشينج.', 'https://elct.eg', 'launched', 'work', 5)
 on conflict (slug) do nothing;
 

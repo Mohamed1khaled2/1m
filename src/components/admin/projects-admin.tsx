@@ -5,6 +5,7 @@ import { addProject, deleteProject, updateProject, type ActionState } from "@/ap
 import { ConfirmButton } from "@/components/admin/confirm-button";
 import { celebrate } from "@/lib/fx";
 import { STAGES, type Project } from "@/lib/journey";
+import { QUARTERS } from "@/lib/year";
 
 /** المشاريع في الأدمن: تغيّر مرحلة أي مشروع على طول، وتضيف مشروع جديد. */
 export function ProjectsAdmin({ projects }: { projects: Project[] }) {
@@ -22,6 +23,7 @@ function ProjectRow({ project: p }: { project: Project }) {
   const [pending, start] = useTransition();
   const [tagline, setTagline] = useState(p.tagline);
   const [error, setError] = useState<string | null>(null);
+  const quarter = QUARTERS.find((x) => x.project === p.slug);
 
   function update(patch: { stage?: string; tagline?: string }) {
     start(async () => {
@@ -40,6 +42,7 @@ function ProjectRow({ project: p }: { project: Project }) {
           <p className="font-black">
             {p.name}
             {p.kind === "work" && <span className="mr-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-muted">بشتغل فيها</span>}
+            {quarter && <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-bold text-gold">Q{quarter.q} · {quarter.months}</span>}
           </p>
           <p className="text-xs text-muted" dir="ltr">
             /p/{p.slug}

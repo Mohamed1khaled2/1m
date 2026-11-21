@@ -3,12 +3,22 @@
 import { useState, useTransition } from "react";
 import { savePlan } from "@/app/admin/actions";
 import { Paper } from "@/components/paper";
+import { QuarterPlanner, type PlanItem } from "@/components/admin/quarter-planner";
 import { celebrate } from "@/lib/fx";
 import type { Step } from "@/lib/journey";
 import { planItemKind } from "@/lib/plan";
 
 /** الخطة اللي بتظهر للناس في الصفحة الرئيسية: الإجابة والخطوات (تعلّم عليها لما تخلّصها). */
-export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: string; initialSteps: Step[] }) {
+export function PlanForm({
+  initialAnswer,
+  initialSteps,
+  quarter,
+}: {
+  initialAnswer: string;
+  initialSteps: Step[];
+  /** مشروع الربع ده: لو موجود بيظهر فوق مساعد خطة الربع */
+  quarter?: { q: number; months: string; year: number; name: string };
+}) {
   const [answer, setAnswer] = useState(initialAnswer);
   const [steps, setSteps] = useState(() => initialSteps.map((step) => ({ ...step, kind: planItemKind(step) })));
   const [draft, setDraft] = useState("");
@@ -22,6 +32,12 @@ export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: strin
     if (!text) return;
     setSteps((s) => [...s, { id: crypto.randomUUID().slice(0, 8), text, done: false, kind: planItemKind({ id: "", text, done: false }) }]);
     setDraft("");
+    dirty();
+  }
+
+  // من خطة الربع: بتتضاف تحت، وبتفضل مش محفوظة لحد ما تدوس احفظ
+  function addMany(items: PlanItem[]) {
+    setSteps((s) => [...s, ...items.map((it) => ({ id: crypto.randomUUID().slice(0, 8), text: it.text.slice(0, 300), done: false, kind: it.kind }))].slice(0, 50));
     dirty();
   }
 
@@ -110,6 +126,12 @@ export function PlanForm({ initialAnswer, initialSteps }: { initialAnswer: strin
         {status === "dirty" && <span className="text-sm text-muted">في تعديلات مش محفوظة</span>}
         {!["idle", "dirty", "saved"].includes(status) && <span className="text-sm text-red-400">{status}</span>}
       </div>
+
+      {quarter && (
+        <div className="mt-12">
+          <QuarterPlanner quarter={quarter} onAdd={addMany} />
+        </div>
+      )}
     </div>
   );
 }

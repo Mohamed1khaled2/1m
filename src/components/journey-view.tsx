@@ -11,12 +11,15 @@ import { HowSection } from "@/components/how-section";
 import { PlanBoard } from "@/components/plan-board";
 import { Reveal } from "@/components/reveal";
 import { ProjectCard } from "@/components/project-card";
+import { EpisodesView } from "@/components/episodes-view";
+import { QuarterPlanView } from "@/components/quarter-plan-view";
+import { QUARTER_PLANS } from "@/lib/quarter-plan";
 import { Terminal } from "@/components/terminal";
 import { YearGrid, type DayActivity } from "@/components/year-grid";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { CREATOR, lineOfTheDay } from "@/lib/creator";
 import { type Entry, type Journey } from "@/lib/journey";
-import { GOAL, QUARTERS, YEAR, formatEGP, isQuarterOpen, paceFor, stepFor } from "@/lib/year";
+import { GOAL, QUARTERS, YEAR, focusQuarter, formatEGP, isQuarterOpen, now, paceFor, stepFor } from "@/lib/year";
 
 const ORDINALS = ["الأول", "التاني", "التالت", "الرابع", "الخامس", "السادس"];
 const OPENS = ["١ يناير", "١ أبريل", "١ يوليو", "١ أكتوبر"];
@@ -57,7 +60,7 @@ function Chapter({ n, title, sub }: { n: string; title: string; sub?: string }) 
 }
 
 /** القصة: من غير ما تقرا الداتابيز، عشان تتعرض بأي رحلة. */
-export function JourneyView({ journey }: { journey: Journey }) {
+export function JourneyView({ journey, episodeLinks = {} }: { journey: Journey; episodeLinks?: Record<string, string> }) {
   const pct = Math.max(0, Math.min(100, (journey.balance / GOAL) * 100));
   const target = GOAL / CREATOR.start;
   const pace = paceFor(journey.balance);
@@ -65,6 +68,11 @@ export function JourneyView({ journey }: { journey: Journey }) {
   const { stats } = journey;
   const hasPlan = !!journey.answer.trim();
   const personalProjects = journey.projects.filter((p) => p.kind === "mine");
+  const bySlug = new Map(personalProjects.map((p) => [p.slug, p]));
+  // مشروع الربع ده بس اللي بيظهر، والباقي بأساميهم في الطابور
+  const focusQ = QUARTERS[focusQuarter() - 1];
+  const focus = bySlug.get(focusQ.project);
+  const upcoming = QUARTERS.filter((x) => x.q > focusQ.q && bySlug.has(x.project));
   const groups = groupEntries(journey.entries);
   const projectOf = new Map(journey.projects.map((p) => [p.id, { slug: p.slug, name: p.name }]));
   const chapters = ["progress", hasPlan && "plan", "how", personalProjects.length > 0 && "projects", "story"].filter(Boolean);
@@ -86,7 +94,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
           { id: "progress", label: "وصل لفين" },
           ...(hasPlan ? [{ id: "plan", label: "الخطة" }] : []),
           { id: "how", label: "إزاي" },
-          ...(personalProjects.length > 0 ? [{ id: "projects", label: "المشاريع" }] : []),
+          ...(personalProjects.length > 0 ? [{ id: "projects", label: focus ? "المشروع" : "المشاريع" }] : []),
           { id: "story", label: "اللي حصل" },
         ]}
       />
@@ -181,6 +189,16 @@ export function JourneyView({ journey }: { journey: Journey }) {
           <section id="plan" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("plan")} title="الخطة" sub="هعمل إيه عشان أوصل للمليون." />
             <PlanBoard answer={journey.answer} />
+            {focus && QUARTER_PLANS[focus.slug] && (
+              <QuarterPlanView
+                quarter={{ q: focusQ.q, months: focusQ.months, year: YEAR }}
+                project={focus.name}
+                copy={QUARTER_PLANS[focus.slug]}
+              />
+            )}
+            {focus && QUARTER_PLANS[focus.slug] && (
+              <EpisodesView year={YEAR} q={focusQ.q} videos={QUARTER_PLANS[focus.slug].videos} links={episodeLinks} at={now()} />
+            )}
           </section>
         )}
 
@@ -206,7 +224,31 @@ export function JourneyView({ journey }: { journey: Journey }) {
         </section>
 
         {/* المشاريع: على الموبايل بتتقلب بالعرض، وعلى الكبير جنب بعض */}
-        {personalProjects.length > 0 && (
+        {focus ? (
+          <section id="projects" className="mt-20 scroll-mt-20">
+            <Chapter n={chapterOf("projects")} title="مشروع الربع ده" sub="٣ شهور على مشروع واحد بس. كل الشغل هنا لحد ما الربع يخلص." />
+            <Reveal>
+              <p className="mb-3 text-center text-sm">
+                <span className="font-black text-gold">Q{focusQ.q}</span>
+                <span className="text-muted">
+                  {" "}
+                  · {focusQ.months} {YEAR}
+                </span>
+              </p>
+              <ProjectCard project={focus} />
+              {upcoming.length > 0 && (
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-sm text-muted">
+                  <span>بعده:</span>
+                  {upcoming.map((x) => (
+                    <span key={x.q} className="rounded-full border border-border px-3 py-1">
+                      🔒 {bySlug.get(x.project)!.name} <span className="text-xs">· Q{x.q}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Reveal>
+          </section>
+        ) : personalProjects.length > 0 && (
           <section id="projects" className="mt-20 scroll-mt-20">
             <Chapter n={chapterOf("projects")} title="المشاريع" sub="كل مشروع قصة لوحده. دوس على أي واحد وشوف قصته." />
             <Reveal>
@@ -275,7 +317,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
               </>
             )}
 
-            {QUARTERS.map(({ q, label, months }, i) => {
+            {QUARTERS.map(({ q, label, months, project }, i) => {
               const open = isQuarterOpen(q);
               const items = groups.quarters[i];
               const net = journey.byQuarter[i];
@@ -292,6 +334,7 @@ export function JourneyView({ journey }: { journey: Journey }) {
                       <h3 className="mt-1 text-2xl font-black">
                         <span className="text-gold">Q{q}</span> · {label}
                       </h3>
+                      {bySlug.has(project) && <p className="text-sm font-bold">{bySlug.get(project)!.name}</p>}
                       <p className="mt-1 text-sm">
                         {!open ? (
                           <span className="text-muted">🔒 يفتح {OPENS[i]}</span>

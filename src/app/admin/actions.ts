@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { passwordMatches, requireAdmin, signIn, signOut } from "@/lib/admin-auth";
+import { episodesKey, loadEpisodeLinks } from "@/lib/episodes";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export type ActionState = { ok?: boolean; error?: string };
@@ -50,9 +51,9 @@ const entrySchema = z.object({
   project_id: z.coerce.number().int().positive().nullable(),
 });
 
-export async function addEntry(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  const parsed = entrySchema.safeParse({
+/** فورم اليومية (إضافة أو تعديل) ← بيانات الجدول. */
+function parseEntry(formData: FormData) {
+  return entrySchema.safeParse({
     happened_on: formData.get("happened_on"),
     kind: formData.get("kind"),
     title: formData.get("title") ?? "",
@@ -62,16 +63,37 @@ export async function addEntry(_: ActionState, formData: FormData): Promise<Acti
       (formData.get("direction") === "out" ? -1 : 1) *
       Math.abs(Number(String(formData.get("amount") ?? "").replace(/[,٬\s]/g, "") || 0)),
     // خانة لكل منصة + خانة لأي لينك تاني؛ الفاضي بيتشال
-    links: ["link_youtube", "link_instagram", "link_tiktok", "link_other"]
-      .map((k) => String(formData.get(k) ?? "").trim())
+    // link_extra: روابط زيادة عن الخانات (من يومية قديمة) بتفضل زي ما هي في التعديل
+    links: [...["link_youtube", "link_instagram", "link_tiktok", "link_other"].map((k) => formData.get(k)), ...formData.getAll("link_extra")]
+      .map((v) => String(v ?? "").trim())
       .filter(Boolean),
     project_id: formData.get("project_id") || null,
   });
+}
+
+export async function addEntry(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = parseEntry(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "في حاجة ناقصة" };
 
   const { error } = await createAdminClient()
     .from("entries")
     .insert(parsed.data);
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** تعديل يومية اتنشرت: نفس فورم النشر، والتعديل بيبان في الموقع على طول. */
+export async function updateEntry(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const id = z.coerce.number().int().positive().safeParse(formData.get("id"));
+  if (!id.success) return { error: "اليومية دي مش موجودة" };
+  const parsed = parseEntry(formData);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "في حاجة ناقصة" };
+
+  const { error } = await createAdminClient().from("entries").update(parsed.data).eq("id", id.data);
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
@@ -145,4 +167,25 @@ export async function deleteCheer(id: number) {
   await requireAdmin();
   await createAdminClient().from("cheers").delete().eq("id", id);
   revalidatePath("/", "layout");
+}
+
+/** لينك حلقة من حلقات الربع. فاضي = الحلقة ترجع مقفولة. */
+export async function saveEpisodeLink(slug: string, week: number, url: string): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = z
+    .object({ slug: z.string().regex(/^[a-z0-9-]{2,40}$/), week: z.number().int().min(1).max(14), url: z.union([z.literal(""), z.url("لينك مش صحيح").max(500)]) })
+    .safeParse({ slug, week, url: url.trim() });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "مش مظبوط" };
+
+  const links = await loadEpisodeLinks(parsed.data.slug);
+  if (parsed.data.url) links[parsed.data.week] = parsed.data.url;
+  else delete links[parsed.data.week];
+
+  const { error } = await createAdminClient()
+    .from("settings")
+    .upsert({ key: episodesKey(parsed.data.slug), value: JSON.stringify(links), updated_at: new Date().toISOString() });
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  return { ok: true };
 }
